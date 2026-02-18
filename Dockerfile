@@ -1,7 +1,7 @@
 FROM php:8.3-apache-bookworm
 
-ENV OHRM_VERSION 5.7
-ENV OHRM_MD5 5bd924a546e29e06c34eec73b014d139
+ENV OHRM_VERSION 5.8
+ENV OHRM_MD5 32c08e6733430414a5774f9fefb71902
 
 RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 
@@ -25,8 +25,8 @@ RUN set -ex; \
 	mv orangehrm-$OHRM_VERSION html; \
 	rm -rf orangehrm.zip; \
 	chown www-data:www-data html; \
-	chown -R www-data:www-data html/src/cache html/src/log html/src/config; \
-	chmod -R 775 html/src/cache html/src/log html/src/config; \
+	chown -R www-data:www-data html/lib/confs html/src/cache html/src/log html/src/config; \
+	chmod -R 775 html/lib/confs html/src/cache html/src/log html/src/config; \
 	\
 	docker-php-ext-configure gd --with-freetype --with-jpeg; \
 	docker-php-ext-configure ldap \
