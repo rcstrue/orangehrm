@@ -201,7 +201,7 @@ class ClaimExpenseAPI extends Endpoint implements CrudEndpoint
                 RequestParams::PARAM_TYPE_ATTRIBUTE,
                 self::PARAMETER_REQUEST_ID
             );
-            $claimRequest = $this->getClaimRequest($requestId);
+            $claimRequest = $this->getClaimRequestForUpdate($requestId);
 
             $this->isActionAllowed(WorkflowStateMachine::CLAIM_ACTION_SUBMIT, $claimRequest);
 
@@ -304,22 +304,32 @@ class ClaimExpenseAPI extends Endpoint implements CrudEndpoint
      */
     public function delete(): EndpointResult
     {
-        $requestId = $this->getRequestParams()
-            ->getInt(RequestParams::PARAM_TYPE_ATTRIBUTE, self::PARAMETER_REQUEST_ID);
-        $claimRequest = $this->getClaimRequest($requestId);
+        $this->beginTransaction();
+        try {
+            $requestId = $this->getRequestParams()
+                ->getInt(RequestParams::PARAM_TYPE_ATTRIBUTE, self::PARAMETER_REQUEST_ID);
+            $claimRequest = $this->getClaimRequestForUpdate($requestId);
 
-        $this->isActionAllowed(WorkflowStateMachine::CLAIM_ACTION_SUBMIT, $claimRequest);
+            $this->isActionAllowed(WorkflowStateMachine::CLAIM_ACTION_SUBMIT, $claimRequest);
 
-        $ids = $this->getClaimService()->getClaimDao()->getExistingClaimExpenseIdsForRequestId(
-            $this->getRequestParams()->getArray(RequestParams::PARAM_TYPE_BODY, CommonParams::PARAMETER_IDS),
-            $requestId
-        );
-        $this->throwRecordNotFoundExceptionIfEmptyIds($ids);
-        $this->getClaimService()
-            ->getClaimDao()
-            ->deleteClaimExpense($requestId, $ids);
+            $ids = $this->getClaimService()->getClaimDao()->getExistingClaimExpenseIdsForRequestId(
+                $this->getRequestParams()->getArray(RequestParams::PARAM_TYPE_BODY, CommonParams::PARAMETER_IDS),
+                $requestId
+            );
+            $this->throwRecordNotFoundExceptionIfEmptyIds($ids);
+            $this->getClaimService()
+                ->getClaimDao()
+                ->deleteClaimExpense($requestId, $ids);
 
-        return new EndpointResourceResult(ArrayModel::class, $ids);
+            $this->commitTransaction();
+            return new EndpointResourceResult(ArrayModel::class, $ids);
+        } catch (ForbiddenException | InvalidParamException | RecordNotFoundException $e) {
+            $this->rollBackTransaction();
+            throw $e;
+        } catch (Exception $e) {
+            $this->rollBackTransaction();
+            throw new TransactionException($e);
+        }
     }
 
     /**

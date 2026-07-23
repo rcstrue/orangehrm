@@ -135,6 +135,20 @@ jobs:
           php -f /usr/bin/composer install
           php -f /usr/bin/composer dump-autoload -o
 
+      - name: Set up PHP 8.5
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 8.5
+
+      - name: Install depandancies on PHP 8.5
+        run: |
+          cd src
+          rm -rf vendor
+          php -v
+          php -f /usr/bin/composer validate --strict
+          php -f /usr/bin/composer install
+          php -f /usr/bin/composer dump-autoload -o
+
   installation:
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04

@@ -84,5 +84,8 @@
     <testsuite name="OpenId">
       <directory>src/plugins/orangehrmOpenidAuthenticationPlugin/test</directory>
     </testsuite>
+    <testsuite name="WorkspaceNotifications">
+      <directory>src/plugins/orangehrmWorkspaceNotificationsPlugin/test</directory>
+    </testsuite>
   </testsuites>
 </phpunit>

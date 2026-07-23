@@ -20,6 +20,7 @@
 namespace OrangeHRM\Leave\Dao;
 
 use DateTime;
+use Doctrine\DBAL\LockMode;
 use Exception;
 use OrangeHRM\Core\Dao\BaseDao;
 use OrangeHRM\Core\Traits\Service\DateTimeHelperTrait;
@@ -33,6 +34,7 @@ use OrangeHRM\Leave\Dto\CurrentAndChangeEntitlement;
 use OrangeHRM\Leave\Dto\EmployeeLeaveSearchFilterParams;
 use OrangeHRM\Leave\Dto\LeaveRequestSearchFilterParams;
 use OrangeHRM\Leave\Dto\LeaveSearchFilterParams;
+use OrangeHRM\Leave\Exception\LeaveAllocationServiceException;
 use OrangeHRM\Leave\Traits\Service\LeaveRequestServiceTrait;
 use OrangeHRM\ORM\Exception\TransactionException;
 use OrangeHRM\ORM\ListSorter;
@@ -45,6 +47,11 @@ class LeaveRequestDao extends BaseDao
     use LeaveRequestServiceTrait;
 
     private bool $doneMarkingApprovedLeaveAsTaken = false;
+
+    /**
+     * Tolerance for floating-point comparison of entitlement balances (days_used is stored to 4 dp).
+     */
+    private const ENTITLEMENT_BALANCE_EPSILON = 0.0001;
 
     /**
      * Save leave request
@@ -66,6 +73,9 @@ class LeaveRequestDao extends BaseDao
             $this->getEntityManager()->persist($leaveRequest);
             $current = $entitlements->getCurrent();
 
+            // Entitlement rows locked (PESSIMISTIC_WRITE) once per id and reused within this transaction.
+            $lockedEntitlements = [];
+
             foreach ($leaveList as $leave) {
                 $leave->setLeaveRequest($leaveRequest);
                 $leave->setLeaveType($leaveRequest->getLeaveType());
@@ -82,12 +92,26 @@ class LeaveRequestDao extends BaseDao
                         $le->setLengthDays($length);
                         $this->getEntityManager()->persist($le);
 
-                        /** @var LeaveEntitlement|null $leaveEntitlement */
-                        $leaveEntitlement = $this->getRepository(LeaveEntitlement::class)->find($entitlementId);
-                        if ($leaveEntitlement instanceof LeaveEntitlement) {
-                            $leaveEntitlement->setDaysUsed($leaveEntitlement->getDaysUsed() + $length);
+                        // Lock the entitlement row once and re-check the balance before consuming,
+                        // so concurrent submissions can't both pass the gate and over-grant.
+                        if (!isset($lockedEntitlements[$entitlementId])) {
+                            $lockedEntitlements[$entitlementId] = $this->getEntityManager()->find(
+                                LeaveEntitlement::class,
+                                $entitlementId,
+                                LockMode::PESSIMISTIC_WRITE
+                            );
                         }
-                        $this->getEntityManager()->persist($leaveEntitlement);
+                        /** @var LeaveEntitlement|null $leaveEntitlement */
+                        $leaveEntitlement = $lockedEntitlements[$entitlementId];
+                        if ($leaveEntitlement instanceof LeaveEntitlement) {
+                            $updatedDaysUsed = $leaveEntitlement->getDaysUsed() + $length;
+                            if ($updatedDaysUsed - $leaveEntitlement->getNoOfDays()
+                                > self::ENTITLEMENT_BALANCE_EPSILON) {
+                                throw LeaveAllocationServiceException::leaveQuotaWillExceed();
+                            }
+                            $leaveEntitlement->setDaysUsed($updatedDaysUsed);
+                            $this->getEntityManager()->persist($leaveEntitlement);
+                        }
                     }
                 }
             }

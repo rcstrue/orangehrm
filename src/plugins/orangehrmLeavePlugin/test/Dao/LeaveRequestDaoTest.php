@@ -20,6 +20,8 @@
 namespace OrangeHRM\Tests\Leave\Dao;
 
 use DateTime;
+use Doctrine\DBAL\DriverManager;
+use Doctrine\DBAL\Exception\RetryableException;
 use Exception;
 use Generator;
 use OrangeHRM\Config\Config;
@@ -806,6 +808,140 @@ class LeaveRequestDaoTest extends KernelTestCase
         return [$leaveRequest, [$leave1, $leave2]];
     }
 
+    /**
+     * saveLeaveRequest() must reject consuming more of an entitlement than is available.
+     * Entitlement #1 has 0.75 day free (no_of_days=3, days_used=2.25); a 1-day request must be
+     * rejected and the stored balance left untouched.
+     */
+    public function testSaveLeaveRequestRejectsEntitlementOverConsumption(): void
+    {
+        $request = new LeaveRequest();
+        $request->setLeaveType($this->getEntityReference(LeaveType::class, 1));
+        $request->setDateApplied(new DateTime('2012-03-01'));
+        $request->setEmployee($this->getEntityReference(Employee::class, 1));
+
+        $leave = new Leave();
+        $leave->setLengthHours(8);
+        $leave->setLengthDays(1);
+        $leave->setDate(new DateTime('2012-03-01'));
+        $leave->setStatus(1);
+
+        // Allocate 1.0 day against entitlement #1, which only has 0.75 available.
+        $entitlements = new CurrentAndChangeEntitlement(['2012-03-01' => [1 => 1.0]], []);
+
+        $caught = null;
+        try {
+            $this->leaveRequestDao->saveLeaveRequest($request, [$leave], $entitlements);
+        } catch (TransactionException $e) {
+            $caught = $e;
+        }
+        $this->assertInstanceOf(
+            TransactionException::class,
+            $caught,
+            'Consuming more than the available entitlement balance must be rejected'
+        );
+
+        // Read the committed DB value directly (bypass the identity map) — must still be 2.25.
+        $this->getEntityManager()->clear();
+        $entitlement = $this->getEntityManager()->find(LeaveEntitlement::class, 1);
+        $this->assertEquals(2.25, $entitlement->getDaysUsed());
+    }
+
+    /**
+     * Concurrency proof: saveLeaveRequest() must read each consumed entitlement with a pessimistic
+     * write lock (SELECT ... FOR UPDATE), not an unlocked SELECT the database serves from the MVCC
+     * snapshot. The locked read is what serialises concurrent submissions: the second writer blocks
+     * until the first commits, then reads the *fresh* days_used so its balance re-check can reject
+     * the over-consuming request instead of both reading a stale value and over-granting.
+     *
+     * Setup that isolates the *read* lock (and not the later UPDATE, which would block on any
+     * pre-existing row lock regardless of the fix): a second, independent connection holds a
+     * FOR UPDATE lock on entitlement #1, and the request asks for *more* than entitlement #1 has
+     * free (1.0 day against a 0.75-day balance — the same over-consumption the re-check rejects).
+     *
+     *  - Fixed code: the find(..., PESSIMISTIC_WRITE) read emits FOR UPDATE, blocks on the held
+     *    lock and — with innodb_lock_wait_timeout lowered to 1s on the EM connection — fails with a
+     *    retryable lock-wait timeout. saveLeaveRequest wraps it as TransactionException → previous
+     *    is a RetryableException. (The over-consumption re-check is never reached.)
+     *  - Pre-fix code: the unlocked SELECT reads the snapshot without blocking, reaches the (then
+     *    absent) re-check and would have happily over-granted. With today's re-check still present
+     *    but the lock removed, the previous would instead be a LeaveAllocationServiceException, not
+     *    a RetryableException — so asserting on RetryableException keeps this test red whenever the
+     *    FOR UPDATE lock is dropped from the read.
+     *
+     * Running the locked read against the real database also surfaces any version-specific
+     * incompatibility on every CI DB-compatibility matrix entry (MySQL / MariaDB).
+     */
+    public function testSaveLeaveRequestTakesPessimisticWriteLockOnConsumedEntitlement(): void
+    {
+        // Entitlement #1: emp 1, leave type 1, no_of_days=3, days_used=2.25 → 0.75 day free.
+        $emConnection = $this->getEntityManager()->getConnection();
+        $originalTimeout = $emConnection->fetchOne('SELECT @@innodb_lock_wait_timeout');
+        // The waiter (saveLeaveRequest, on the EM connection) must fail fast instead of blocking
+        // for the server default lock-wait timeout (often 50s).
+        $emConnection->executeStatement('SET SESSION innodb_lock_wait_timeout = 1');
+
+        $secondConnection = DriverManager::getConnection($emConnection->getParams());
+
+        $request = new LeaveRequest();
+        $request->setLeaveType($this->getEntityReference(LeaveType::class, 1));
+        $request->setDateApplied(new DateTime('2012-03-01'));
+        $request->setEmployee($this->getEntityReference(Employee::class, 1));
+
+        $leave = new Leave();
+        $leave->setLengthHours(8);
+        $leave->setLengthDays(1);
+        $leave->setDate(new DateTime('2012-03-01'));
+        $leave->setStatus(1);
+
+        // 1.0 day against entitlement #1, which has only 0.75 free — the re-check would reject this,
+        // so the pre-fix (unlocked) read never issues an UPDATE that could block on its own.
+        $entitlements = new CurrentAndChangeEntitlement(['2012-03-01' => [1 => 1.0]], []);
+
+        try {
+            // Concurrent writer B grabs the write lock on entitlement #1 and holds it.
+            $secondConnection->beginTransaction();
+            $secondConnection->executeQuery(
+                'SELECT id FROM ohrm_leave_entitlement WHERE id = ? FOR UPDATE',
+                [1]
+            );
+
+            // A: the real save path must block at its FOR UPDATE read of entitlement #1 and time out.
+            $caught = null;
+            try {
+                $this->leaveRequestDao->saveLeaveRequest($request, [$leave], $entitlements);
+            } catch (TransactionException $e) {
+                $caught = $e;
+            }
+
+            $this->assertInstanceOf(
+                TransactionException::class,
+                $caught,
+                'saveLeaveRequest must fail while another transaction holds the entitlement row lock'
+            );
+            $this->assertInstanceOf(
+                RetryableException::class,
+                $caught->getPrevious(),
+                'The failure must be a lock wait timeout, proving the entitlement row is read '
+                . 'FOR UPDATE by saveLeaveRequest rather than with an unlocked SELECT — the locked '
+                . 'read is what serialises concurrent submissions.'
+            );
+
+            // The blocked transaction rolled back: days_used on entitlement #1 is untouched.
+            $this->getEntityManager()->clear();
+            $entitlement = $this->getEntityManager()->find(LeaveEntitlement::class, 1);
+            $this->assertEquals(2.25, $entitlement->getDaysUsed());
+        } finally {
+            if ($secondConnection->isTransactionActive()) {
+                $secondConnection->rollBack();
+            }
+            $secondConnection->close();
+            $emConnection->executeStatement(
+                'SET SESSION innodb_lock_wait_timeout = ' . (int)$originalTimeout
+            );
+        }
+    }
+
     public function testSaveLeaveRequestNewRequestNoEntitlement(): void
     {
         $leaveRequestIds = $this->getLeaveRequestIdsFromDb();
@@ -862,11 +998,13 @@ class LeaveRequestDaoTest extends KernelTestCase
 
         $entitlementAssignmentIds = $this->getEntitlementAssignmentIdsFromDb();
 
-        // entitlements to be assigned to leave
+        // entitlements to be assigned to leave — kept within each entitlement's available
+        // balance (entitlement #1 has only 0.75 day free: 3 - 2.25), since saveLeaveRequest now
+        // rejects consuming more than is available.
         $entitlements = [
             'current' => [
                 '2010-12-01' => [1 => 0.4, 2 => 0.6],
-                '2010-12-02' => [1 => 1]
+                '2010-12-02' => [1 => 0.3]
             ]
         ];
 

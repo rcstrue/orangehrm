@@ -44,6 +44,7 @@ use OrangeHRM\Core\Api\V2\Validator\Rule;
 use OrangeHRM\Core\Api\V2\Validator\Rules;
 use OrangeHRM\Core\Service\DateTimeHelperService;
 use OrangeHRM\Core\Traits\Auth\AuthUserTrait;
+use OrangeHRM\Core\Traits\ORM\EntityManagerHelperTrait;
 use OrangeHRM\Core\Traits\Service\DateTimeHelperTrait;
 use OrangeHRM\Core\Traits\Service\NumberHelperTrait;
 use OrangeHRM\Core\Traits\UserRoleManagerTrait;
@@ -54,6 +55,7 @@ use OrangeHRM\Entity\WorkflowStateMachine;
 class EmployeeAttendanceRecordAPI extends Endpoint implements CrudEndpoint
 {
     use AttendanceServiceTrait;
+    use EntityManagerHelperTrait;
     use AuthUserTrait;
     use DateTimeHelperTrait;
     use UserRoleManagerTrait;
@@ -293,6 +295,7 @@ class EmployeeAttendanceRecordAPI extends Endpoint implements CrudEndpoint
      */
     public function create(): EndpointResourceResult
     {
+        $this->beginTransaction();
         try {
             list($empNumber, $date, $time, $timezoneOffset, $timezoneName, $note) = $this->getCommonRequestParams();
             $allowedWorkflowItems = $this->getUserRoleManager()->getAllowedActions(
@@ -311,7 +314,7 @@ class EmployeeAttendanceRecordAPI extends Endpoint implements CrudEndpoint
             );
             $overlappingPunchInRecords = $this->getAttendanceService()
                 ->getAttendanceDao()
-                ->checkForPunchInOverLappingRecords($punchInUTCDateTime, $empNumber);
+                ->checkForPunchInOverLappingRecordsForUpdate($punchInUTCDateTime, $empNumber);
             if ($overlappingPunchInRecords) {
                 throw AttendanceServiceException::punchInOverlapFound();
             }
@@ -325,9 +328,14 @@ class EmployeeAttendanceRecordAPI extends Endpoint implements CrudEndpoint
                 $note
             );
             $attendanceRecord = $this->getAttendanceService()->getAttendanceDao()->savePunchRecord($attendanceRecord);
+            $this->commitTransaction();
             return new EndpointResourceResult(AttendanceRecordModel::class, $attendanceRecord);
         } catch (AttendanceServiceException $e) {
+            $this->rollBackTransaction();
             throw $this->getBadRequestException($e->getMessage());
+        } catch (Exception $e) {
+            $this->rollBackTransaction();
+            throw $e;
         }
     }
 

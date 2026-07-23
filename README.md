@@ -24,6 +24,14 @@ OrangeHRM is distributed in the hope that it will be useful, but WITHOUT ANY WAR
 
 - For further information on how to use the product please refer to the User Guides, Tutorial videos, and FAQs available on [Help Portal](https://starterhelp.orangehrm.com)
 
+## Using AI coding agents
+
+This repo ships guidance for AI coding agents under [`.agents/`](.agents/) — [`AGENTS.md`](AGENTS.md) is the entry point.
+
+**Open the repo in your coding agent and just say Hi** — it'll check what's set up and walk you through the rest.
+
+> If that doesn't kick things off, prompt it: *"Please follow `.agents/SETUP.md` to set yourself up for this project."*
+
 ## OrangeHRM Mobile App
 
 <a href="https://play.google.com/store/apps/details?id=com.orangehrm.opensource" target="_blank">

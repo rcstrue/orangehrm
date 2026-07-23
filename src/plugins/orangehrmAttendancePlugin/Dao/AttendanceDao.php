@@ -20,6 +20,7 @@
 namespace OrangeHRM\Attendance\Dao;
 
 use DateTime;
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\Query\Expr;
 use Doctrine\ORM\QueryBuilder;
 use OrangeHRM\Attendance\Dto\AttendanceRecordSearchFilterParams;
@@ -101,6 +102,46 @@ class AttendanceDao extends BaseDao
         }
 
         return $this->getCommonQueryForPunchInOverlap($punchInTime, $employeeNumber);
+    }
+
+    /**
+     * Same as checkForPunchInOverLappingRecords() but reads the employee's latest attendance
+     * record under a pessimistic write lock so concurrent punch-ins for the same employee are
+     * serialised. Must be called inside an active transaction.
+     *
+     * @param DateTime $punchInTime
+     * @param int $employeeNumber
+     * @return bool false if no overlap found
+     * @throws AttendanceServiceException
+     */
+    public function checkForPunchInOverLappingRecordsForUpdate(DateTime $punchInTime, int $employeeNumber): bool
+    {
+        $attendanceRecord = $this->getLatestAttendanceRecordByEmployeeNumberForUpdate($employeeNumber);
+        if (is_null($attendanceRecord)) {
+            return false;
+        }
+        if ($attendanceRecord->getState() === AttendanceRecord::STATE_PUNCHED_IN) {
+            throw AttendanceServiceException::punchInAlreadyExist();
+        }
+
+        return $this->getCommonQueryForPunchInOverlap($punchInTime, $employeeNumber);
+    }
+
+    /**
+     * @param int $employeeNumber
+     * @return AttendanceRecord|null
+     */
+    private function getLatestAttendanceRecordByEmployeeNumberForUpdate(int $employeeNumber): ?AttendanceRecord
+    {
+        $q = $this->createQueryBuilder(AttendanceRecord::class, 'attendanceRecord');
+        $q->andWhere('attendanceRecord.employee = :empNumber');
+        $q->setParameter('empNumber', $employeeNumber);
+        $q->orderBy('attendanceRecord.id', ListSorter::DESCENDING);
+        $q->setMaxResults(1);
+
+        $query = $q->getQuery();
+        $query->setLockMode(LockMode::PESSIMISTIC_WRITE);
+        return $query->getOneOrNullResult();
     }
 
     /**

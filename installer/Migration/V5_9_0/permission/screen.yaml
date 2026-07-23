@@ -1,0 +1,5 @@
+'Admin - Workspace Notification Configuration':
+  module: admin
+  url: workspaceNotificationConfiguration
+  permissions:
+    - { role: Admin, permission: { read: true } }

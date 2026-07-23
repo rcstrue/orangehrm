@@ -455,4 +455,24 @@ final class Services
      * @see \OrangeHRM\OpenidAuthentication\Service\SocialMediaAuthenticationService
      */
     public const SOCIAL_MEDIA_AUTH_SERVICE = 'oidc.social_media_auth_service';
+
+    /**
+     * @see \OrangeHRM\WorkspaceNotifications\Service\WorkspaceNotificationSettingsService
+     */
+    public const WORKSPACE_NOTIFICATION_SETTINGS_SERVICE = 'workspace_notification.settings_service';
+
+    /**
+     * @see \OrangeHRM\WorkspaceNotifications\Service\WorkspaceNotificationRegistrationService
+     */
+    public const WORKSPACE_NOTIFICATION_REGISTRATION_SERVICE = 'workspace_notification.registration_service';
+
+    /**
+     * @see \OrangeHRM\WorkspaceNotifications\Service\WorkspaceNotificationService
+     */
+    public const WORKSPACE_NOTIFICATION_SERVICE = 'workspace_notification.service';
+
+    /**
+     * @see \OrangeHRM\WorkspaceNotifications\Service\Webhook\WebhookProviderRegistry
+     */
+    public const WEBHOOK_PROVIDER_REGISTRY = 'workspace_notification.webhook_provider_registry';
 }

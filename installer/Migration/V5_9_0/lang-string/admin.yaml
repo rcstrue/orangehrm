@@ -1,0 +1,174 @@
+langStrings:
+  # Page title + section headers
+  -
+    value: 'Workspace Notification Configuration'
+    unitId: workspace_notification_configuration
+  -
+    value: 'Notification Registration'
+    unitId: notification_registration
+  -
+    value: 'Edit Notification Registration'
+    unitId: edit_notification_registration
+  -
+    value: 'Notification Registrations'
+    unitId: notification_registrations
+  -
+    value: 'Configure a workspace channel (Slack, Google Chat, or Teams) to receive automated notifications. Each registration has its own timezone and send time.'
+    unitId: workspace_notification_form_hint
+
+  # Form field labels + hints
+  -
+    value: 'Notification Type'
+    unitId: notification_type
+  -
+    value: 'Platform'
+    unitId: platform
+  -
+    value: 'Slack'
+    unitId: platform_slack
+  -
+    value: 'Google Chat'
+    unitId: platform_google_chat
+  -
+    value: 'Slack Incoming Webhook URL'
+    unitId: slack_incoming_webhook_url
+  -
+    value: 'Google Chat Webhook URL'
+    unitId: google_chat_webhook_url
+  -
+    value: 'Microsoft Teams Workflow URL'
+    unitId: teams_workflow_url
+  -
+    value: 'Create an Incoming Webhook in your Slack workspace and paste the URL here. Must be HTTPS.'
+    unitId: slack_webhook_hint
+  -
+    value: 'Create an Incoming Webhook in your Google Chat workspace and paste the URL here. Must be HTTPS.'
+    unitId: google_chat_webhook_hint
+  -
+    value: 'Channel Name (Optional)'
+    unitId: workspace_notification_channel_name_optional
+  -
+    value: 'Label only (e.g. #hr-team). The webhook URL determines the actual destination.'
+    unitId: workspace_notification_channel_hint
+  -
+    value: 'Sub Units'
+    unitId: sub_units
+  -
+    value: 'Filter by subunit(s): leave empty to include all employees, or pick one or more subunits to limit notifications.'
+    unitId: workspace_notification_subunit_hint
+  -
+    value: 'Select the time zone to send this notification.'
+    unitId: workspace_notification_timezone_hint
+  -
+    value: 'Channel'
+    unitId: channel
+  -
+    value: 'Send Time'
+    unitId: send_time
+  -
+    value: 'Local send time (HH:mm).'
+    unitId: workspace_notification_send_time_hint
+  -
+    value: 'All Employees'
+    unitId: all_employees
+
+  # Buttons
+  -
+    value: 'Send Test'
+    unitId: send_test
+  -
+    value: 'Should be a valid Slack Incoming Webhook URL (https://hooks.slack.com/services/…)'
+    unitId: slack_webhook_url_invalid
+  -
+    value: 'Should be a valid Google Chat webhook URL (https://chat.googleapis.com/v1/spaces/…?key=…&token=…)'
+    unitId: google_chat_webhook_url_invalid
+  -
+    value: '+ Add Registration'
+    unitId: add_registration
+  -
+    value: 'Update'
+    unitId: update
+
+  # Event-type labels (driven by backend WorkspaceNotificationRegistration::EVENT_TYPES)
+  -
+    value: 'Birthday'
+    unitId: workspace_notification_event_birthday
+
+  # Table empty-state + cron hint
+  -
+    value: 'No registrations yet. Fill the form above and click + Add Registration to create one.'
+    unitId: workspace_notification_no_registrations_hint
+  -
+    value: 'Ensure the server cron runs php bin/console orangehrm:run-schedule regularly (e.g. every 5–15 minutes) so scheduled notifications can run.'
+    unitId: workspace_notification_cron_reminder
+
+  # Inline hint shown when platform changes — interpolates {platform}
+  -
+    value: 'Chat Platform changed. Paste a new {platform} Webhook URL for this channel before saving.'
+    unitId: workspace_notification_platform_changed_hint
+
+  # Duplicate-registration confirmation dialog
+  -
+    value: 'Possible duplicate registration'
+    unitId: workspace_notification_duplicate_dialog_title
+  -
+    value: 'Another registration already targets the same event type, workspace channel, and subunit. Saving this will cause the same message to be sent more than once per day. Do you want to save anyway?'
+    unitId: workspace_notification_duplicate_dialog_subtitle
+  -
+    value: 'Go back and edit'
+    unitId: workspace_notification_go_back_and_fix
+
+  # Info alert shown on the configuration screen (blue / info style)
+  -
+    value: 'Scheduling an event here triggers the configured notification flows automatically. Ensure the server cron runs php bin/console orangehrm:run-schedule regularly (e.g. every 5–15 minutes) so scheduled notifications can run.'
+    unitId: workspace_notification_schedule_info
+
+  # Send-test confirmation dialog
+  -
+    value: 'Send a test message?'
+    unitId: workspace_notification_send_test_dialog_title
+  -
+    value: 'This will deliver a sample notification to the channel for this registration. It works regardless of whether the row is active.'
+    unitId: workspace_notification_send_test_dialog_subtitle
+
+  # Duplicate-warning toast
+  -
+    value: 'Heads up: a similar registration already exists. The same message may be sent more than once per day.'
+    unitId: workspace_notification_duplicate_warning
+
+  # Toast error messages
+  -
+    value: 'Failed to save. Check the webhook URL and try again.'
+    unitId: workspace_notification_save_failed
+  -
+    value: 'Test message sent to the configured channel.'
+    unitId: workspace_notification_test_sent
+  -
+    value: 'Failed to send test message. Check the webhook URL.'
+    unitId: workspace_notification_test_failed
+  -
+    value: 'Could not update status. Refresh and try again.'
+    unitId: workspace_notification_status_update_failed
+  -
+    value: 'Could not update global toggle.'
+    unitId: workspace_notification_global_toggle_failed
+
+  # Webhook hints + validation messages (per platform)
+  -
+    value: 'Create a Power Automate "Post to channel" workflow with an HTTP trigger and paste the workflow URL here. Must be HTTPS.'
+    unitId: teams_webhook_hint
+  -
+    value: 'Should be a valid Microsoft Teams Power Automate workflow URL'
+    unitId: teams_webhook_url_invalid
+  -
+    value: 'Google Chat webhook URL must include both key and token query parameters.'
+    unitId: google_chat_webhook_key_token_required
+  -
+    value: 'Microsoft Teams workflow URL must include the sig query parameter.'
+    unitId: teams_webhook_sig_required
+  -
+    value: 'Invalid URL.'
+    unitId: workspace_notification_invalid_url
+  -
+    value: '(saved — leave blank to keep)'
+    unitId: workspace_notification_webhook_saved_hint

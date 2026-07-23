@@ -25,6 +25,7 @@ use OrangeHRM\Claim\Dto\ClaimExpenseSearchFilterParams;
 use OrangeHRM\Claim\Dto\ClaimExpenseTypeSearchFilterParams;
 use OrangeHRM\Claim\Dto\ClaimRequestSearchFilterParams;
 use OrangeHRM\Claim\Dto\PartialClaimAttachment;
+use Doctrine\DBAL\LockMode;
 use OrangeHRM\Core\Dao\BaseDao;
 use OrangeHRM\Entity\ClaimAttachment;
 use OrangeHRM\Entity\ClaimEvent;
@@ -338,6 +339,25 @@ class ClaimDao extends BaseDao
     public function getClaimRequestById(int $id): ?ClaimRequest
     {
         return $this->getRepository(ClaimRequest::class)->findOneBy(['id' => $id, 'isDeleted' => false]);
+    }
+
+    /**
+     * Read a claim request under a pessimistic write lock. Must be called within an
+     * active transaction.
+     *
+     * @param int $id
+     * @return ClaimRequest|null
+     */
+    public function getClaimRequestByIdForUpdate(int $id): ?ClaimRequest
+    {
+        $qb = $this->createQueryBuilder(ClaimRequest::class, 'claimRequest');
+        $qb->andWhere('claimRequest.id = :id')
+            ->setParameter('id', $id);
+        $qb->andWhere('claimRequest.isDeleted = :isDeleted')
+            ->setParameter('isDeleted', false);
+        $query = $qb->getQuery();
+        $query->setLockMode(LockMode::PESSIMISTIC_WRITE);
+        return $query->getOneOrNullResult();
     }
 
     /**

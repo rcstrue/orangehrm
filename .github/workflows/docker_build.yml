@@ -17,4 +17,89 @@ jobs:
 
       - name: Build the Docker image
         run: |
-          docker build . --file Dockerfile
+          docker build . --file Dockerfile --tag orangehrm/orangehrm:latest
+
+      - name: Start the container
+        run: |
+          docker run -d --name ohrm-smoke -p 8080:80 orangehrm/orangehrm:latest
+
+      - name: Smoke test (dry run)
+        run: |
+          echo "Waiting for the installer to render..."
+          for i in $(seq 1 30); do
+            code="$(curl -sL -o response.html -w '%{http_code}' http://localhost:8080/installer/index.php || true)"
+            echo "Attempt $i: HTTP $code"
+            if [ "$code" = "200" ] && grep -qi 'OrangeHRM' response.html; then
+              echo "Installer rendered successfully (HTTP 200, OrangeHRM page served)."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Installer did not render a valid page within the timeout (last HTTP: ${code:-none})."
+          exit 1
+
+      - name: Screenshot the installer
+        if: always()
+        continue-on-error: true
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+          cat > shot.mjs <<'EOF'
+          import { chromium } from 'playwright';
+          const browser = await chromium.launch();
+          const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+          await page.goto('http://localhost:8080/installer/index.php', { waitUntil: 'networkidle', timeout: 60000 });
+          await page.screenshot({ path: 'installer.png', fullPage: true });
+          await browser.close();
+          EOF
+          node shot.mjs
+
+      - name: Capture container logs
+        if: always()
+        run: docker logs ohrm-smoke > docker-logs.txt 2>&1 || true
+
+      - name: Upload container logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-logs
+          path: docker-logs.txt
+          if-no-files-found: ignore
+
+      - name: Upload installer response
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-response
+          path: response.html
+          if-no-files-found: ignore
+
+      - name: Upload installer screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-screenshot
+          path: installer.png
+          if-no-files-found: ignore
+
+      - name: Publish screenshot to job summary
+        if: always()
+        continue-on-error: true
+        run: |
+          {
+            echo "## Installer smoke test"
+            echo ""
+            if [ -f installer.png ]; then
+              echo "### Installer screenshot"
+              echo ""
+              # data: URIs may be stripped by GitHub's markdown CSP; the
+              # installer-screenshot artifact is the reliable fallback.
+              echo "<img src=\"data:image/png;base64,$(base64 -w0 installer.png)\" width=\"900\" alt=\"Installer welcome screen\" />"
+            else
+              echo "_No screenshot was captured — see the docker-logs artifact._"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Tear down
+        if: always()
+        run: docker rm -f ohrm-smoke || true

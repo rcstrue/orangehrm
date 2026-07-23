@@ -24,6 +24,7 @@ use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\AbstractTransport;
 use Symfony\Component\Mailer\Transport;
 use Symfony\Component\Mailer\Transport\Dsn;
+use Symfony\Component\Mailer\Transport\SendmailTransport;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 
 class MailTransport extends AbstractTransport
@@ -77,8 +78,10 @@ class MailTransport extends AbstractTransport
     public function __construct(string $scheme = self::SCHEME_SMTP, string $host = 'localhost', ?int $port = null)
     {
         if ($scheme == self::SCHEME_SENDMAIL) {
-            $dsn = 'sendmail://default?command='.urlencode($host);
-            $this->mailTransport = Transport::fromDsn($dsn);
+            if (!preg_match('#^/[a-zA-Z0-9./_-]+(\s+-[a-zA-Z]{1,3})*$#', $host)) {
+                throw new \InvalidArgumentException('Invalid sendmail path');
+            }
+            $this->mailTransport = new SendmailTransport($host);
         } elseif ($scheme == self::SCHEME_SMTP || $scheme == self::SCHEME_SECURE_SMTP) {
             $this->scheme = $scheme;
             $this->host = $host;

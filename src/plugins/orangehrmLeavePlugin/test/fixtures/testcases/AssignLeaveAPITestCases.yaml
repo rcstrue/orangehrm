@@ -318,6 +318,87 @@ Create:
     meta:
       empNumber: 2
 
+  # Admin/supervisor assignment is allowed to exceed the entitlement balance (allowToExceedLeaveBalance
+  # is true on this path). Emp 6 has only 0.5 day entitled; assigning a full (1.0) day must still
+  # succeed, not throw. The strategy consumes the 0.5 available (balance settles at 0.0) and grants the
+  # remaining 0.5 day without entitlement backing — so the full day is scheduled (noOfDays 1.0) even
+  # though only 0.5 is entitled. The saveLeaveRequest re-check must NOT reject this.
+  'admin can assign leave exceeding the entitlement balance':
+    userId: 1
+    now:
+      datetime: '2021-09-21'
+    services:
+      leave.leave_type_service: \OrangeHRM\Leave\Service\LeaveTypeService
+      leave.work_schedule_service: \OrangeHRM\Leave\Service\WorkScheduleService
+      leave.leave_config_service: \OrangeHRM\Leave\Service\LeaveConfigurationService
+      pim.employee_service: \OrangeHRM\Pim\Service\EmployeeService
+      core.config_service: \OrangeHRM\Core\Service\ConfigService
+      leave.leave_request_service: \OrangeHRM\Leave\Service\LeaveRequestService
+      leave.holiday_service: \OrangeHRM\Leave\Service\HolidayService
+      leave.work_week_service: \OrangeHRM\Leave\Service\WorkWeekService
+      admin.user_service: \OrangeHRM\Admin\Service\UserService
+      leave.leave_entitlement_service: \OrangeHRM\Leave\Service\LeaveEntitlementService
+      leave.leave_period_service: \OrangeHRM\Leave\Service\LeavePeriodService
+      core.normalizer_service: \OrangeHRM\Core\Service\NormalizerService
+    factories:
+      core.authorization.user_role_manager: [ '\OrangeHRM\Core\Authorization\Manager\UserRoleManagerFactory', 'getNewUserRoleManager' ]
+    body:
+      empNumber: 6
+      leaveTypeId: 6
+      fromDate: '2021-10-11'
+      toDate: '2021-10-11'
+      duration:
+        type: 'full_day'
+    query:
+      model: 'detailed'
+    data:
+      id: 1
+      leaveType:
+        id: 6
+        name: 'Medical'
+        deleted: false
+      dates:
+        fromDate: '2021-10-11'
+        toDate: null
+        durationType:
+          id: 0
+          type: 'full_day'
+        startTime: null
+        endTime: null
+      noOfDays: 1.0
+      leaveBalances:
+        - period:
+            startDate: '2021-01-01'
+            endDate: '2021-12-31'
+          balance:
+            entitled: 0.5
+            used: 0.5
+            scheduled: 0.5
+            pending: 0.0
+            taken: 0.0
+            balance: 0.0
+            asAtDate: '2021-10-11'
+            endDate: '2021-12-31'
+      multiPeriod: false
+      leaveBreakdown:
+        - id: 2
+          name: 'Scheduled'
+          lengthDays: 1.0
+      allowedActions:
+        - action: 'CANCEL'
+          name: 'Cancel'
+      hasMultipleStatus: false
+      employee:
+        empNumber: 6
+        lastName: 'Morgan'
+        firstName: 'Jasmine'
+        middleName: ''
+        employeeId: '0006'
+        terminationId: null
+      lastComment: null
+    meta:
+      empNumber: 6
+
   'single day - specify time':
     userId: 1
     now:

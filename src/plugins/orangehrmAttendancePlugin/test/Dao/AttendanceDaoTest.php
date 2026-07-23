@@ -21,6 +21,9 @@ namespace OrangeHRM\Tests\Attendance\Dao;
 
 use DateTime;
 use DateTimeZone;
+use Doctrine\DBAL\DriverManager;
+use Doctrine\DBAL\Exception\RetryableException;
+use Doctrine\ORM\TransactionRequiredException;
 use Exception;
 use OrangeHRM\Admin\Service\CompanyStructureService;
 use OrangeHRM\Attendance\Dao\AttendanceDao;
@@ -30,6 +33,7 @@ use OrangeHRM\Attendance\Exception\AttendanceServiceException;
 use OrangeHRM\Config\Config;
 use OrangeHRM\Core\Service\DateTimeHelperService;
 use OrangeHRM\Framework\Services;
+use OrangeHRM\ORM\Doctrine;
 use OrangeHRM\Tests\Util\KernelTestCase;
 use OrangeHRM\Tests\Util\TestDataService;
 use OrangeHRM\Time\Dto\AttendanceReportSearchFilterParams;
@@ -110,6 +114,110 @@ class AttendanceDaoTest extends KernelTestCase
             5
         );
         $this->assertTrue($overlapStatus);
+    }
+
+    /**
+     * The locked overlap check must take a pessimistic write lock: Doctrine raises
+     * TransactionRequiredException when a pessimistic-write query runs without an active
+     * transaction, which confirms the overlap read is locked rather than a plain SELECT.
+     */
+    public function testCheckForPunchInOverLappingRecordsForUpdateRequiresTransactionForLock(): void
+    {
+        $utcTimeZone = new DateTimeZone(DateTimeHelperService::TIMEZONE_UTC);
+        $this->expectException(TransactionRequiredException::class);
+        $this->attendanceDao->checkForPunchInOverLappingRecordsForUpdate(
+            new DateTime("2011-04-22 09:25:00", $utcTimeZone),
+            5
+        );
+    }
+
+    public function testCheckForPunchInOverLappingRecordsForUpdateWithinTransaction(): void
+    {
+        $utcTimeZone = new DateTimeZone(DateTimeHelperService::TIMEZONE_UTC);
+        $connection = Doctrine::getEntityManager()->getConnection();
+        $connection->beginTransaction();
+        try {
+            // Employee 5 last punched out; a fresh punch-in does not overlap.
+            $this->assertFalse(
+                $this->attendanceDao->checkForPunchInOverLappingRecordsForUpdate(
+                    new DateTime("2011-04-22 09:25:00", $utcTimeZone),
+                    5
+                )
+            );
+            // An overlapping time for the same employee is detected.
+            $this->assertTrue(
+                $this->attendanceDao->checkForPunchInOverLappingRecordsForUpdate(
+                    new DateTime("2011-04-21 09:26:00", $utcTimeZone),
+                    5
+                )
+            );
+            // Employee 4 is already punched in: a second punch-in must be rejected.
+            $this->expectException(AttendanceServiceException::class);
+            $this->attendanceDao->checkForPunchInOverLappingRecordsForUpdate(
+                new DateTime("2022-01-27 09:23:00", $utcTimeZone),
+                4
+            );
+        } finally {
+            $connection->rollBack();
+        }
+    }
+
+    /**
+     * Concurrency proof for the punch-in overlap lock: two simultaneous punch-ins for the
+     * same employee must be serialised so they cannot both pass the overlap check and create
+     * duplicate open records. Connection A (the EntityManager connection) holds the
+     * pessimistic write lock taken by checkForPunchInOverLappingRecordsForUpdate(), which
+     * locks the employee's latest attendance record. A second, independent connection B then
+     * runs the same latest-record FOR UPDATE query with a 1-second innodb_lock_wait_timeout
+     * and must block on A's lock, failing with a retryable lock-contention error — the
+     * observable signature of a genuine row lock.
+     *
+     * This also runs the FOR UPDATE read against the real database, so any version-specific
+     * incompatibility surfaces on every CI DB-compatibility matrix entry (MySQL / MariaDB).
+     */
+    public function testCheckForPunchInOverLappingRecordsForUpdateLocksLatestRecordAgainstConcurrentPunchIn(): void
+    {
+        $utcTimeZone = new DateTimeZone(DateTimeHelperService::TIMEZONE_UTC);
+        $emConnection = Doctrine::getEntityManager()->getConnection();
+        $secondConnection = DriverManager::getConnection($emConnection->getParams());
+        // Fail fast instead of waiting the server default lock-wait timeout (often 50s).
+        $secondConnection->executeStatement('SET SESSION innodb_lock_wait_timeout = 1');
+
+        $emConnection->beginTransaction();
+        try {
+            // Employee 5 last punched out: this call locks their latest record (no overlap).
+            $this->assertFalse(
+                $this->attendanceDao->checkForPunchInOverLappingRecordsForUpdate(
+                    new DateTime("2011-04-22 09:25:00", $utcTimeZone),
+                    5
+                )
+            );
+
+            // A concurrent punch-in for the same employee locks the same latest record.
+            $secondConnection->beginTransaction();
+            $lockContention = null;
+            try {
+                $secondConnection->executeQuery(
+                    'SELECT id FROM ohrm_attendance_record WHERE employee_id = ? ORDER BY id DESC LIMIT 1 FOR UPDATE',
+                    [5]
+                );
+            } catch (RetryableException $e) {
+                $lockContention = $e;
+            }
+
+            $this->assertInstanceOf(
+                RetryableException::class,
+                $lockContention,
+                'A concurrent punch-in must block on the latest-record write lock held by the '
+                . 'first transaction, proving punch-ins for the same employee are serialised.'
+            );
+        } finally {
+            if ($secondConnection->isTransactionActive()) {
+                $secondConnection->rollBack();
+            }
+            $secondConnection->close();
+            $emConnection->rollBack();
+        }
     }
 
     public function testPunchOutOverlapRecords(): void

@@ -61,6 +61,29 @@ trait ClaimRequestAPIHelperTrait
     {
         $claimRequest = $this->getClaimService()->getClaimDao()
             ->getClaimRequestById($requestId);
+        return $this->assertClaimRequestAccessible($claimRequest);
+    }
+
+    /**
+     * Same as getClaimRequest() but reads the claim request under a pessimistic write lock.
+     * Must be called inside an active transaction.
+     *
+     * @param int $requestId
+     * @return ClaimRequest
+     */
+    public function getClaimRequestForUpdate(int $requestId): ClaimRequest
+    {
+        $claimRequest = $this->getClaimService()->getClaimDao()
+            ->getClaimRequestByIdForUpdate($requestId);
+        return $this->assertClaimRequestAccessible($claimRequest);
+    }
+
+    /**
+     * @param ClaimRequest|null $claimRequest
+     * @return ClaimRequest
+     */
+    private function assertClaimRequestAccessible(?ClaimRequest $claimRequest): ClaimRequest
+    {
         $this->throwRecordNotFoundExceptionIfNotExist($claimRequest, ClaimRequest::class);
         if (!$this->getUserRoleManagerHelper()->isEmployeeAccessible($claimRequest->getEmployee()->getEmpNumber())) {
             throw $this->getForbiddenException();

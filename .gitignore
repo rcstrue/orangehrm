@@ -13,3 +13,12 @@ coverage/
 src/plugins/orangehrmFunctionalTestingPlugin
 .php-cs-fixer.cache
 .php-cs-fixer.php
+
+
+# --- AI coding agents ---
+.claude/
+.cursor/
+CLAUDE.local.md
+.aider*
+.gemini/
+.codex/

@@ -1,0 +1,339 @@
+GetAll:
+  'GetAll - no params returns all rows ordered by id':
+    userId: 1
+    query: []
+    data:
+      - id: 1
+        provider: slack
+        eventType: BIRTHDAY
+        webhookUrl: 'https://hooks.slack.com/services/T01ABCDEF/B01ABCDEF/…'
+        channelLabel: alpha
+        subunits: []
+        timezone: UTC
+        dailySendTime: '09:00'
+        active: true
+      - id: 2
+        provider: slack
+        eventType: LEAVE_TODAY
+        webhookUrl: 'https://hooks.slack.com/services/T02ABCDEF/B02ABCDEF/…'
+        channelLabel: gamma
+        subunits: []
+        timezone: UTC
+        dailySendTime: '08:00'
+        active: true
+      - id: 3
+        provider: slack
+        eventType: BIRTHDAY
+        webhookUrl: 'https://hooks.slack.com/services/T03ABCDEF/B03ABCDEF/…'
+        channelLabel: beta
+        subunits: []
+        timezone: Asia/Colombo
+        dailySendTime: '10:00'
+        active: false
+    meta:
+      total: 3
+
+  'GetAll - limit 1 returns first row with total 3':
+    userId: 1
+    query:
+      limit: 1
+    data:
+      - id: 1
+        provider: slack
+        eventType: BIRTHDAY
+        webhookUrl: 'https://hooks.slack.com/services/T01ABCDEF/B01ABCDEF/…'
+        channelLabel: alpha
+        subunits: []
+        timezone: UTC
+        dailySendTime: '09:00'
+        active: true
+    meta:
+      total: 3
+
+  'GetAll - limit 1 offset 1 returns second row':
+    userId: 1
+    query:
+      limit: 1
+      offset: 1
+    data:
+      - id: 2
+        provider: slack
+        eventType: LEAVE_TODAY
+        webhookUrl: 'https://hooks.slack.com/services/T02ABCDEF/B02ABCDEF/…'
+        channelLabel: gamma
+        subunits: []
+        timezone: UTC
+        dailySendTime: '08:00'
+        active: true
+    meta:
+      total: 3
+
+  'GetAll - sort by channelLabel DESC':
+    userId: 1
+    query:
+      sortField: 'r.channelLabel'
+      sortOrder: DESC
+    data:
+      - id: 2
+        provider: slack
+        eventType: LEAVE_TODAY
+        webhookUrl: 'https://hooks.slack.com/services/T02ABCDEF/B02ABCDEF/…'
+        channelLabel: gamma
+        subunits: []
+        timezone: UTC
+        dailySendTime: '08:00'
+        active: true
+      - id: 3
+        provider: slack
+        eventType: BIRTHDAY
+        webhookUrl: 'https://hooks.slack.com/services/T03ABCDEF/B03ABCDEF/…'
+        channelLabel: beta
+        subunits: []
+        timezone: Asia/Colombo
+        dailySendTime: '10:00'
+        active: false
+      - id: 1
+        provider: slack
+        eventType: BIRTHDAY
+        webhookUrl: 'https://hooks.slack.com/services/T01ABCDEF/B01ABCDEF/…'
+        channelLabel: alpha
+        subunits: []
+        timezone: UTC
+        dailySendTime: '09:00'
+        active: true
+    meta:
+      total: 3
+
+  'GetAll - invalid sortField returns 422':
+    userId: 1
+    query:
+      sortField: 'r.webhookUrl'
+    invalidOnly: [ sortField ]
+
+Create:
+  'Create - missing eventType':
+    userId: 1
+    services: { }
+    attributes: [ ]
+    query: [ ]
+    body:
+      {
+        "webhookUrl": "https://hooks.slack.com/services/T01ABCDEF/B02GHIJKL/abcSeCrEt123",
+        "timezone": "UTC",
+        "dailySendTime": "09:00"
+      }
+    invalidOnly: [ "eventType" ]
+
+  'Create - missing webhookUrl':
+    userId: 1
+    services: { }
+    attributes: [ ]
+    query: [ ]
+    body:
+      {
+        "eventType": "BIRTHDAY",
+        "timezone": "UTC",
+        "dailySendTime": "09:00"
+      }
+    invalidOnly: [ "webhookUrl" ]
+
+  'Create - missing timezone':
+    userId: 1
+    services: { }
+    attributes: [ ]
+    query: [ ]
+    body:
+      {
+        "eventType": "BIRTHDAY",
+        "webhookUrl": "https://hooks.slack.com/services/T01ABCDEF/B02GHIJKL/abcSeCrEt123",
+        "dailySendTime": "09:00"
+      }
+    invalidOnly: [ "timezone" ]
+
+  'Create - missing dailySendTime':
+    userId: 1
+    services: { }
+    attributes: [ ]
+    query: [ ]
+    body:
+      {
+        "eventType": "BIRTHDAY",
+        "webhookUrl": "https://hooks.slack.com/services/T01ABCDEF/B02GHIJKL/abcSeCrEt123",
+        "timezone": "UTC"
+      }
+    invalidOnly: [ "dailySendTime" ]
+
+  'Create - eventType not in supported list':
+    userId: 1
+    services: { }
+    attributes: [ ]
+    query: [ ]
+    body:
+      {
+        "eventType": "NEW_HIRE",
+        "webhookUrl": "https://hooks.slack.com/services/T01ABCDEF/B02GHIJKL/abcSeCrEt123",
+        "timezone": "UTC",
+        "dailySendTime": "09:00"
+      }
+    invalidOnly: [ "eventType" ]
+
+  'Create - dailySendTime wrong format (no colon)':
+    userId: 1
+    services: { }
+    attributes: [ ]
+    query: [ ]
+    body:
+      {
+        "eventType": "BIRTHDAY",
+        "webhookUrl": "https://hooks.slack.com/services/T01ABCDEF/B02GHIJKL/abcSeCrEt123",
+        "timezone": "UTC",
+        "dailySendTime": "0900"
+      }
+    invalidOnly: [ "dailySendTime" ]
+
+  'Create - dailySendTime hour out of range':
+    # The regex /^([01]\d|2[0-3]):[0-5]\d$/ rejects hour 24+.
+    userId: 1
+    services: { }
+    attributes: [ ]
+    query: [ ]
+    body:
+      {
+        "eventType": "BIRTHDAY",
+        "webhookUrl": "https://hooks.slack.com/services/T01ABCDEF/B02GHIJKL/abcSeCrEt123",
+        "timezone": "UTC",
+        "dailySendTime": "25:00"
+      }
+    invalidOnly: [ "dailySendTime" ]
+
+  'Create - dailySendTime minute out of range':
+    userId: 1
+    services: { }
+    attributes: [ ]
+    query: [ ]
+    body:
+      {
+        "eventType": "BIRTHDAY",
+        "webhookUrl": "https://hooks.slack.com/services/T01ABCDEF/B02GHIJKL/abcSeCrEt123",
+        "timezone": "UTC",
+        "dailySendTime": "09:65"
+      }
+    invalidOnly: [ "dailySendTime" ]
+
+  'Create - subunitIds not array':
+    userId: 1
+    services: { }
+    attributes: [ ]
+    query: [ ]
+    body:
+      {
+        "eventType": "BIRTHDAY",
+        "webhookUrl": "https://hooks.slack.com/services/T01ABCDEF/B02GHIJKL/abcSeCrEt123",
+        "timezone": "UTC",
+        "dailySendTime": "09:00",
+        "subunitIds": "1,2,3"
+      }
+    invalidOnly: [ "subunitIds" ]
+
+  'Create - active not bool':
+    userId: 1
+    services: { }
+    attributes: [ ]
+    query: [ ]
+    body:
+      {
+        "eventType": "BIRTHDAY",
+        "webhookUrl": "https://hooks.slack.com/services/T01ABCDEF/B02GHIJKL/abcSeCrEt123",
+        "timezone": "UTC",
+        "dailySendTime": "09:00",
+        "active": "yes"
+      }
+    invalidOnly: [ "active" ]
+
+  'Create - provider not in supported list':
+    userId: 1
+    services: { }
+    attributes: [ ]
+    query: [ ]
+    body:
+      {
+        "eventType": "BIRTHDAY",
+        "webhookUrl": "https://hooks.slack.com/services/T01ABCDEF/B02GHIJKL/abcSeCrEt123",
+        "timezone": "UTC",
+        "dailySendTime": "09:00",
+        "provider": "discord"
+      }
+    invalidOnly: [ "provider" ]
+
+Update:
+  'Update - dailySendTime wrong format (with id attribute)':
+    userId: 1
+    services: { }
+    attributes:
+      id: 1
+    query: [ ]
+    body:
+      {
+        "dailySendTime": "9am"
+      }
+    invalidOnly: [ "dailySendTime" ]
+
+  'Update - eventType not in supported list':
+    userId: 1
+    services: { }
+    attributes:
+      id: 1
+    query: [ ]
+    body:
+      {
+        "eventType": "NEW_HIRE"
+      }
+    invalidOnly: [ "eventType" ]
+
+  'Update - subunitIds not array':
+    userId: 1
+    services: { }
+    attributes:
+      id: 1
+    query: [ ]
+    body:
+      {
+        "subunitIds": "1"
+      }
+    invalidOnly: [ "subunitIds" ]
+
+  # Partial-update semantics (empty body is accepted) are exercised at the
+  # service layer — see WorkspaceNotificationRegistrationService::applyPayload. Running it at
+  # the API layer would require a persisted registration row + encryption-key
+  # setup to fully execute update(), which is out of scope for param-rule tests.
+
+GetOne:
+  'GetOne - id zero is invalid (must be positive)':
+    userId: 1
+    services: { }
+    attributes:
+      id: 0
+    query: [ ]
+    body: [ ]
+    invalidOnly: [ "id" ]
+
+  'GetOne - negative id is invalid':
+    userId: 1
+    services: { }
+    attributes:
+      id: -1
+    query: [ ]
+    body: [ ]
+    invalidOnly: [ "id" ]
+
+Delete:
+  'Delete - ids must be array':
+    userId: 1
+    services: { }
+    attributes: [ ]
+    query: [ ]
+    body:
+      {
+        "ids": "1"
+      }
+    invalidOnly: [ "ids" ]

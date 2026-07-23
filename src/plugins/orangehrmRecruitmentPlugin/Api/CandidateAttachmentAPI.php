@@ -147,7 +147,8 @@ class CandidateAttachmentAPI extends Endpoint implements CrudEndpoint
         return new ParamRuleCollection(
             new ParamRule(
                 self::PARAMETER_CANDIDATE_ID,
-                new Rule(Rules::ENTITY_ID_EXISTS, [Candidate::class])
+                new Rule(Rules::ENTITY_ID_EXISTS, [Candidate::class]),
+                new Rule(Rules::IN_ACCESSIBLE_ENTITY_ID, [Candidate::class])
             ),
             new ParamRule(
                 self::PARAMETER_ATTACHMENT,
@@ -225,7 +226,11 @@ class CandidateAttachmentAPI extends Endpoint implements CrudEndpoint
     public function getValidationRuleForGetOne(): ParamRuleCollection
     {
         return new ParamRuleCollection(
-            new ParamRule(self::PARAMETER_CANDIDATE_ID),
+            new ParamRule(
+                self::PARAMETER_CANDIDATE_ID,
+                new Rule(Rules::POSITIVE),
+                new Rule(Rules::IN_ACCESSIBLE_ENTITY_ID, [Candidate::class])
+            ),
         );
     }
 
@@ -309,6 +314,7 @@ class CandidateAttachmentAPI extends Endpoint implements CrudEndpoint
             new ParamRule(
                 self::PARAMETER_CANDIDATE_ID,
                 new Rule(Rules::POSITIVE),
+                new Rule(Rules::IN_ACCESSIBLE_ENTITY_ID, [Candidate::class])
             ),
             new ParamRule(
                 self::PARAMETER_CURRENT_ATTACHMENT,

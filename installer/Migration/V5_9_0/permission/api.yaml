@@ -1,0 +1,38 @@
+apiv2_admin_workspace_notification_config:
+  description: 'API-v2 Admin - Workspace Notification Configuration'
+  api: OrangeHRM\WorkspaceNotifications\Api\WorkspaceNotificationConfigAPI
+  module: admin
+  allowed:
+    read: true
+    create: false
+    update: true
+    delete: false
+  permissions:
+    - { role: Admin, permission: { read: true, create: false, update: true, delete: false } }
+    - { role: ESS, permission: { read: false, create: false, update: false, delete: false } }
+
+apiv2_admin_workspace_notification_registrations:
+  description: 'API-v2 Admin - Workspace Notification Registrations'
+  api: OrangeHRM\WorkspaceNotifications\Api\WorkspaceNotificationRegistrationAPI
+  module: admin
+  allowed:
+    read: true
+    create: true
+    update: true
+    delete: true
+  permissions:
+    - { role: Admin, permission: { read: true, create: true, update: true, delete: true } }
+    - { role: ESS, permission: { read: false, create: false, update: false, delete: false } }
+
+apiv2_admin_workspace_notification_test:
+  description: 'API-v2 Admin - Workspace Notification Test Webhook'
+  api: OrangeHRM\WorkspaceNotifications\Api\WorkspaceNotificationTestWebhookAPI
+  module: admin
+  allowed:
+    read: false
+    create: true
+    update: false
+    delete: false
+  permissions:
+    - { role: Admin, permission: { read: false, create: true, update: false, delete: false } }
+    - { role: ESS, permission: { read: false, create: false, update: false, delete: false } }
